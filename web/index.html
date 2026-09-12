@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TimeRequest · 定时请求监测</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">TR</div>
+    <div class="brand-text">
+      <h1>TimeRequest</h1>
+      <p>定时请求监测与分析</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="next-run" id="nextRun" title="下次自动检查时间">—</div>
+    <div class="interval-box">
+      <label for="interval">间隔</label>
+      <input id="interval" type="number" min="1" max="86400" value="60" step="1">
+      <span>秒</span>
+    </div>
+    <button id="btnRunNow" class="btn" title="立即对所有已启用目标执行一次检查">立即检查</button>
+    <button id="btnRunning" class="btn primary">暂停</button>
+    <button id="btnAdd" class="btn ghost">＋ 添加目标</button>
+  </div>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <div class="card">
+      <div class="card-head">
+        <h2>监测目标</h2>
+        <span class="count" id="targetCount">0</span>
+      </div>
+      <ul id="targetList" class="target-list"></ul>
+      <div class="empty" id="targetEmpty" hidden>暂无目标<br>点击右上角「添加目标」创建</div>
+    </div>
+  </aside>
+
+  <section class="content">
+    <div class="stat-row">
+      <div class="stat-card">
+        <p class="label">累计请求</p>
+        <p class="value" id="stRecords">0</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">成功率</p>
+        <p class="value" id="stOkRate">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">平均响应</p>
+        <p class="value" id="stAvg">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">最慢响应</p>
+        <p class="value" id="stMax">—</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>响应耗时趋势 <span class="hint">（最近 60 分钟 · 每分钟均值）</span></h2>
+        <select id="chartTarget" class="select">
+          <option value="">全部目标</option>
+        </select>
+      </div>
+      <div class="chart-wrap">
+        <svg id="lineChart" viewBox="0 0 900 260" preserveAspectRatio="none"></svg>
+        <div class="chart-empty" id="chartEmpty">暂无数据，等待首次检查…</div>
+        <div class="tooltip" id="chartTip" hidden></div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-head"><h2>状态分布</h2></div>
+        <div class="donut-wrap">
+          <svg id="donut" viewBox="0 0 150 150"></svg>
+          <div class="donut-center">
+            <p id="donutTotal">0</p>
+            <p class="donut-label">最近 200 次</p>
+          </div>
+        </div>
+        <ul id="donutLegend" class="donut-legend"></ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>重定向 / 异常提醒</h2></div>
+        <div id="issueBox" class="info-box">暂无重定向或异常记录</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>请求记录 <span class="hint">（点击行查看请求包 / 响应包）</span></h2>
+        <div class="filter-box">
+          <select id="filterTarget" class="select">
+            <option value="">全部目标</option>
+          </select>
+          <span class="count" id="recCount">0</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="recordsTable">
+          <thead>
+            <tr>
+              <th>时间</th><th>目标</th><th>方法</th><th>URL</th>
+              <th>状态</th><th>首字节</th><th>总耗时</th><th>结果</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" id="recEmpty" hidden>暂无记录</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 添加 / 编辑目标弹窗 -->
+<div class="modal-mask" id="modalMask" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">添加目标</h2>
+      <button class="icon-btn" id="modalClose" title="关闭">✕</button>
+    </div>
+    <div class="form">
+      <label>名称
+        <input id="fName" placeholder="例如：百度首页">
+      </label>
+      <label>URL
+        <input id="fUrl" placeholder="https://baidu.com">
+      </label>
+      <label>方法
+        <select id="fMethod">
+          <option>GET</option><option>POST</option><option>PUT</option>
+          <option>DELETE</option><option>PATCH</option><option>HEAD</option>
+        </select>
+      </label>
+      <label>自定义请求头（JSON 格式）
+        <textarea id="fHeaders" rows="4" spellcheck="false"
+                  placeholder='{"Authorization": "Bearer xxx"}'></textarea>
+      </label>
+      <label>请求体（POST / PUT 等使用）
+        <textarea id="fBody" rows="3" spellcheck="false" placeholder="可选"></textarea>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="modalCancel">取消</button>
+      <button class="btn primary" id="modalSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 请求 / 响应包详情抽屉 -->
+<div class="drawer-mask" id="drawerMask" hidden>
+  <div class="drawer">
+    <div class="drawer-head">
+      <div>
+        <h2>请求详情</h2>
+        <p class="sub" id="drawerMeta"></p>
+      </div>
+      <button class="icon-btn" id="drawerClose" title="关闭">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>
